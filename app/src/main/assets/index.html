@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>微博热搜</title>
+<style>
+  * { margin:0; padding:0; }
+  html, body { width:100%; height:100%; background:#ffffff; color:#000000;
+    font-family: sans-serif; font-size:18px; overflow:hidden; }
+  body { display:-webkit-box; display:-webkit-flex; display:flex;
+    -webkit-box-orient:vertical; -webkit-flex-direction:column; flex-direction:column; }
+
+  .header {
+    height:48px; line-height:48px; padding:0 18px;
+    border-bottom:2px solid #000; -webkit-flex:none; flex:none;
+  }
+  .header h1 { font-size:22px; font-weight:bold; display:inline; }
+  .header .time { float:right; font-size:16px; }
+  .header .time b { font-size:18px; }
+
+  .listwrap {
+    -webkit-box-flex:1; -webkit-flex:1; flex:1;
+    overflow-y:auto; overflow-x:hidden;
+  }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  col.c-rank { width:38px; }
+  col.c-hot { width:68px; }
+  td { padding:8px 6px; border-bottom:1px solid #cccccc; font-size:18px;
+    vertical-align:middle; height:42px; word-wrap:break-word; }
+  td.rank { font-weight:bold; font-size:20px; text-align:center; }
+  td.rank.r1 { font-size:22px; }
+  td.rank.r2 { font-size:21px; }
+  td.rank.r3 { font-size:20px; }
+  td.word { font-size:18px; line-height:1.3; }
+  td.word.top { font-weight:bold; }
+  td.hot { text-align:right; font-size:16px; white-space:nowrap; padding-right:16px; }
+  .tag { font-size:14px; }
+
+  .footer {
+    height:56px; border-top:2px solid #000; text-align:center;
+    line-height:52px; background:#ffffff; -webkit-flex:none; flex:none;
+  }
+  .btn {
+    display:inline-block; padding:4px 48px; border:2px solid #000;
+    background:#000; color:#fff; font-size:20px; font-weight:bold;
+    line-height:1.4; cursor:pointer;
+  }
+  .btn:active { background:#ffffff; color:#000; }
+
+  .msg { text-align:center; padding:80px 20px; font-size:18px; line-height:1.8; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>微博热搜</h1>
+  <div class="time" id="time">--:--</div>
+</div>
+
+<div class="listwrap" id="listwrap">
+  <table id="list">
+    <colgroup><col class="c-rank"><col><col class="c-hot"></colgroup>
+    <tr><td colspan="3" class="msg">正在加载...</td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  <div class="btn" id="refreshBtn">刷 新</div>
+</div>
+
+<script>
+var listEl = document.getElementById('list');
+var wrapEl = document.getElementById('listwrap');
+var timeEl = document.getElementById('time');
+var btn = document.getElementById('refreshBtn');
+
+function loadData() {
+  listEl.innerHTML = '<colgroup><col class="c-rank"><col><col class="c-hot"></colgroup><tr><td colspan="3" class="msg">正在加载...</td></tr>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'http://localhost/hotsearch', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          render(data.data.realtime);
+        } catch (e) {
+          listEl.innerHTML = '<colgroup><col class="c-rank"><col><col class="c-hot"></colgroup><tr><td colspan="3" class="msg">数据解析失败<br>请点击下方按钮重试</td></tr>';
+        }
+      } else {
+        listEl.innerHTML = '<colgroup><col class="c-rank"><col><col class="c-hot"></colgroup><tr><td colspan="3" class="msg">加载失败 HTTP ' + xhr.status + '<br>请检查后点击重试</td></tr>';
+      }
+    }
+  };
+  xhr.onerror = function() {
+    listEl.innerHTML = '<colgroup><col class="c-rank"><col><col class="c-hot"></colgroup><tr><td colspan="3" class="msg">网络错误<br>请检查连接后点击重试</td></tr>';
+  };
+  xhr.send();
+}
+
+function render(items) {
+  var now = new Date();
+  var h = now.getHours();
+  var m = now.getMinutes();
+  timeEl.innerHTML = '更新 <b>' + h + ':' + (m < 10 ? '0' + m : '' + m) + '</b>';
+
+  var html = '<colgroup><col class="c-rank"><col><col class="c-hot"></colgroup>';
+  var max = items.length;
+  if (max > 30) max = 30;
+
+  for (var i = 0; i < max; i++) {
+    var it = items[i];
+    var rank = i + 1;
+    var word = it.word || it.note || '';
+    var num = it.num || 0;
+    var label = it.label_name || '';
+
+    var hotStr = '';
+    if (num >= 10000) {
+      hotStr = (num / 10000).toFixed(1) + '万';
+    } else {
+      hotStr = '' + num;
+    }
+
+    var rankCls = 'rank';
+    if (rank === 1) rankCls += ' r1';
+    else if (rank === 2) rankCls += ' r2';
+    else if (rank === 3) rankCls += ' r3';
+
+    var wordCls = 'word';
+    if (rank <= 3) wordCls += ' top';
+
+    var tagHtml = '';
+    if (label) {
+      tagHtml = ' <span class="tag">[' + label + ']</span>';
+    }
+
+    html += '<tr>';
+    html += '<td class="' + rankCls + '">' + rank + '</td>';
+    html += '<td class="' + wordCls + '">' + escapeHtml(word) + tagHtml + '</td>';
+    html += '<td class="hot">' + hotStr + '</td>';
+    html += '</tr>';
+  }
+
+  listEl.innerHTML = html;
+  wrapEl.scrollTop = 0;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+btn.addEventListener('click', loadData);
+loadData();
+setInterval(loadData, 300000);
+</script>
+
+</body>
+</html>
